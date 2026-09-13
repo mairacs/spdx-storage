@@ -142,20 +142,20 @@ def expand_uri_frontier(store: Triplestore, uri_frontier: set[URIRef],
     next_uri_frontier: set[URIRef] = set()
     next_blank_node_frontier: set[BlankPath] = set()
 
-    for node in uri_frontier:
-        if node in visited_uris:
-            continue
+    nodes_to_expand = uri_frontier - visited_uris
+    if not nodes_to_expand:
+        return next_uri_frontier, next_blank_node_frontier
 
-        visited_uris.add(node)
+    visited_uris.update(nodes_to_expand)
 
-        graph_result = query_node_edges(store, node)
+    graph_result = query_uri_frontier_edges(store, nodes_to_expand)
 
-        for _, predicate, obj in graph_result:
-            if isinstance(obj, URIRef):
-                next_uri_frontier.add(obj)
+    for subject, predicate, obj in graph_result:
+        if isinstance(obj, URIRef):
+            next_uri_frontier.add(obj)
 
-            elif isinstance(obj, BNode):
-                next_blank_node_frontier.add(BlankPath(anchor=node, steps=(BlankStep(predicate, outgoing=True),)))
+        elif isinstance(obj, BNode):
+            next_blank_node_frontier.add(BlankPath(anchor=subject, steps=(BlankStep(predicate, outgoing=True),)))
 
     return next_uri_frontier, next_blank_node_frontier
 
@@ -201,6 +201,27 @@ def query_node_edges(store: Triplestore, node: URIRef, *, include_incoming: bool
         }}
         WHERE {{ {where_part} }}"""
     results_ttl = store.execute(direct_edge_query)
+
+    result_graph = Graph()
+    result_graph.parse(data=results_ttl, format="turtle")
+    return result_graph
+
+
+def query_uri_frontier_edges(store: Triplestore, nodes: set[URIRef]) -> Graph:
+    uri_values = " ".join(node.n3() for node in nodes)
+
+    edges_part = f"""
+        VALUES ?s {{ {uri_values} }}
+        ?s ?p ?o .
+    """
+    where_part = (f"GRAPH <{store.graph_uri}> {{ {edges_part} }}" if store.graph_uri is not None else edges_part)
+
+    query = f"""
+        CONSTRUCT {{
+            ?s ?p ?o .
+        }}
+        WHERE {{ {where_part} }}"""
+    results_ttl = store.execute(query)
 
     result_graph = Graph()
     result_graph.parse(data=results_ttl, format="turtle")
