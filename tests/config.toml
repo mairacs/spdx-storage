@@ -1,0 +1,2 @@
+backend = "oxigraph"
+graph = "https://example.org/spdx-test"
