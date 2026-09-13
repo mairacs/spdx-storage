@@ -59,4 +59,4 @@ class ConfigManager:
                 config_file.write(f"{key} = {json.dumps(value)}\n")
 
     def _resolve_key(self, key: str) -> str:
-        return self._ALIASES.get(key, key)
+        return self.ALIASES.get(key, key)
